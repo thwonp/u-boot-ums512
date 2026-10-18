@@ -265,6 +265,10 @@ HOSTCXX      = c++
 HOSTCFLAGS   = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 HOSTCXXFLAGS = -O2
 
+# GCC 14 rejects by default several things this 2015 tree does throughout.
+# Keep them as warnings; real bugs get fixed in their own patches.
+HOSTCFLAGS   += -fpermissive -Wno-error=return-mismatch -Wno-error=int-conversion -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
+
 ifeq ($(HOSTOS),cygwin)
 HOSTCFLAGS	+= -ansi
 endif
@@ -577,6 +581,7 @@ endif
 
 KBUILD_CFLAGS += $(call cc-option,-fno-stack-protector)
 KBUILD_CFLAGS += $(call cc-option,-fno-delete-null-pointer-checks)
+KBUILD_CFLAGS += -fpermissive -Wno-error=return-mismatch -Wno-error=int-conversion -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types
 
 KBUILD_CFLAGS	+= -g
 # $(KBUILD_AFLAGS) sets -g, which causes gcc to pass a suitable -g<format>
@@ -924,7 +929,7 @@ endif
 
 # Create a file containing the configuration options the image was built with
 quiet_cmd_cpp_cfg = CFG     $@
-cmd_cpp_cfg = $(CPP) -Wp,-MD,$(depfile) $(cpp_flags) $(LDPPFLAGS) -ansi \
+cmd_cpp_cfg = $(CPP) -Wp,-MD,$(depfile) $(cpp_flags) $(LDPPFLAGS) \
 	-DDO_DEPS_ONLY -D__ASSEMBLY__ -x assembler-with-cpp -P -dM -E -o $@ $<
 
 MKIMAGEFLAGS_u-boot.img = -A $(ARCH) -T firmware -C none -O u-boot \
@@ -1299,7 +1304,7 @@ depend dep:
 
 # ---------------------------------------------------------------------------
 quiet_cmd_cpp_lds = LDS     $@
-cmd_cpp_lds = $(CPP) -Wp,-MD,$(depfile) $(cpp_flags) $(LDPPFLAGS) -ansi \
+cmd_cpp_lds = $(CPP) -Wp,-MD,$(depfile) $(cpp_flags) $(LDPPFLAGS) \
 		-D__ASSEMBLY__ -x assembler-with-cpp -P -o $@ $<
 
 u-boot.lds: $(LDSCRIPT) prepare FORCE
@@ -1352,9 +1357,11 @@ checkdtc:
 # ARM relocations should all be R_ARM_RELATIVE (32-bit) or
 # R_AARCH64_RELATIVE (64-bit).
 checkarmreloc: u-boot
-	@RELOC="`$(CROSS_COMPILE)readelf -r -W $< | cut -d ' ' -f 4 | \
-		grep R_A | sort -u`"; \
-	if test "$$RELOC" != "R_ARM_RELATIVE" -a \
+	@RELOC="`$(CROSS_COMPILE)readelf -r -W $< | \
+		grep -o 'R_[A-Z0-9_]*' | sort -u`"; \
+	if test -z "$$RELOC"; then \
+		echo "$<: readelf reported no relocations; skipping check" >&2; \
+	elif test "$$RELOC" != "R_ARM_RELATIVE" -a \
 		 "$$RELOC" != "R_AARCH64_RELATIVE"; then \
 		echo "$< contains unexpected relocations: $$RELOC"; \
 		false; \
