@@ -234,19 +234,25 @@
 #define CONFIG_BOOTCOMMAND \
 	"extlinux_scan; cboot; cboot fastboot"
 #define CONFIG_BOOTDELAY		0
+/* gunzip limit for a compressed kernel uImage (the 8 MiB default is under
+ * our 41 MiB Image) */
+#define CONFIG_SYS_BOOTM_LEN		(64 << 20)
 /*
  * Load addresses must stay clear of the SoC carve-outs (stock DTB
  * reserved-memory): iq-mem 0x90000000+64M, sml/tos 0x94000000-0x9a000000,
  * audio-mem 0x87400000+4M. The old defaults put the FDT and pxefile inside
- * tos-mem and the ramdisk inside iq-mem. kernel_addr_r is the final booti
- * placement (DDR base + 0x80000, matching the vendor KERNEL_ADR), making
- * booti's relocation memmove a no-op. initrd/fdt are used in place
+ * tos-mem and the ramdisk inside iq-mem. The kernel runs at DDR base +
+ * 0x80000 (the vendor KERNEL_ADR). kernel_addr_r is where the file lands:
+ * 0x9a200000, free RAM below the bmp buffer (0x9d000000), so a gzip uImage
+ * unpacks to 0x80080000 without overlapping itself, and a plain Image (up to
+ * 46 MiB) still boots - booti moves it down (plorpos-3yv.49.3). initrd/fdt
+ * are used in place
  * (initrd_high/fdt_high = ~0) instead of being lmb-relocated into
  * top-of-RAM regions shared with the framebuffer carve-outs.
  */
 #define	CONFIG_EXTRA_ENV_SETTINGS					\
 	"mtdparts=" MTDPARTS_DEFAULT "\0"				\
-	"kernel_addr_r=0x80080000\0"					\
+	"kernel_addr_r=0x9a200000\0"					\
 	"ramdisk_addr_r=0x85000000\0"				\
 	"fdt_addr_r=0x84e00000\0"					\
 	"pxefile_addr_r=0x84d00000\0"				\
