@@ -20,6 +20,7 @@
 #include <asm/arch-sharkl5pro/chip_sharkl5pro/aon_apb.h>
 #include <asm/arch-sharkl5pro/chip_sharkl5pro/pmu_apb.h>
 #include "cp_boot.h"
+#include "plorpos_logo_draw.h"
 
 /*
  * Hold VOLUME-UP at power-on to hand the boot back to the stock U-Boot in
@@ -169,6 +170,48 @@ static void lcd_banner(const char *msg)
 	logo_display(LOGO_NORMAL_POWER, BACKLIGHT_ON, 0);
 }
 
+/* The swivel's hall switch: ap_gpio 54, active low, asserted = closed. */
+#define HALL_GPIO		54
+
+/* 1 when the swivel is closed. Same pad setup as volup_pressed(). */
+static int swivel_closed(void)
+{
+	if (gpio_pin_set(HALL_GPIO, PIN_IE, PIN_UP_20K))
+		return 0;
+
+	sprd_gpio_request(NULL, HALL_GPIO);
+	sprd_gpio_direction_input(NULL, HALL_GPIO);
+	udelay(VOLUP_SETTLE_US);
+
+	return sprd_gpio_get(NULL, HALL_GPIO) == 0;
+}
+
+/* The plorpOS logo, upright for the way the device is held. */
+static void lcd_logo(void)
+{
+	if (!panel_up) {
+		logo_display(LOGO_NORMAL_POWER, BACKLIGHT_OFF, LCD_DISPLAY_ENABLE);
+		panel_up = 1;
+	}
+	plorpos_logo_draw((unsigned int *)(uintptr_t)gd->fb_base,
+			  panel_info.vl_col, panel_info.vl_row, swivel_closed());
+	lcd_sync();
+	logo_display(LOGO_NORMAL_POWER, BACKLIGHT_ON, 0);
+}
+
+/*
+ * Milliseconds since power-on: the arch timer counts from SoC reset, and
+ * Linux can read the same counter, so the kernel side lines up with these.
+ */
+static unsigned long boot_ms(void)
+{
+	unsigned long cnt, frq;
+
+	asm volatile("isb; mrs %0, cntpct_el0" : "=r"(cnt));
+	asm volatile("mrs %0, cntfrq_el0" : "=r"(frq));
+	return frq ? cnt / (frq / 1000) : 0;
+}
+
 /* Show the current pack charge. Panel must already be up. */
 static void charge_draw(void)
 {
@@ -266,7 +309,7 @@ static void charge_blank(void)
  * which is black here (CONFIG_SYS_WHITE_ON_BLACK). No-op if the panel was
  * never brought up.
  *
- * This is what arch_preboot_os() calls, so the "Booting..." banner stays lit
+ * This is what arch_preboot_os() calls, so the boot logo stays lit
  * for the whole kernel/dtb/initrd load and only goes dark at the handoff --
  * rather than the kernel's DRM bring-up relighting a panel that still holds
  * our pixels, which is what produced the line artifacts before fbcon cleared.
@@ -350,7 +393,7 @@ static int charge_screen(void)
 
 			if (held_long) {
 				printf("[uboot] power held, leaving charge mode\n");
-				lcd_banner("Booting...");
+				lcd_logo();
 				return 0;
 			}
 
@@ -503,6 +546,8 @@ static int do_extlinux_scan(cmd_tbl_t *cmdtp, int flag, int argc,
 	};
 	static const int parts[] = { 1, 2 };
 	int sd_present, fi, pi;
+	unsigned long t_scan = boot_ms(), t_logo;
+	char t_env[48];
 
 	printf("[uboot] extlinux diagnostic scan\n");
 
@@ -578,12 +623,22 @@ static int do_extlinux_scan(cmd_tbl_t *cmdtp, int flag, int argc,
 				       paths[fi], dev_part);
 
 				/*
-				 * Show our own "Booting..." banner (not the stock logo)
+				 * Show the plorpOS logo (not the stock one)
 				 * so it's clear we're on the custom firmware, then set up
 				 * the audio DSP right before we jump to the kernel.
 				 */
-				lcd_banner("Booting...");
+				lcd_logo();
+				t_logo = boot_ms();
 				memset_dsp_share_memory();
+
+				/*
+				 * ms since power-on: scan start, logo lit, sysboot
+				 * start. extlinux's append can pass them on as
+				 * plorpos.ubt=${plorpos_ubt} (plorpos-3yv.49).
+				 */
+				snprintf(t_env, sizeof(t_env), "%lu,%lu,%lu",
+					 t_scan, t_logo, boot_ms());
+				setenv("plorpos_ubt", t_env);
 
 				if (!try_sysboot(1, parts[pi], paths[fi]))
 					return 0;
