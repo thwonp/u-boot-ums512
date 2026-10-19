@@ -2490,6 +2490,39 @@ void sprd_mmc_exit(int sdio_type)
 	printf("%s: sd power off\n", __func__);
 }
 
+/*
+ * board_sd_init()'s 25 MHz cap also leaves the card on ONE data line: here
+ * MMC_MODE_HS is MMC_CAP(MMC_HS) | MMC_CAP(SD_HS) = bits 1-2 and
+ * MMC_MODE_HS_52MHz is bit 3, which are also MMC_MODE_4BIT and
+ * MMC_MODE_8BIT, so clearing them clears the bus widths too. Putting 4BIT
+ * back would not do: mmc_startup() reads that same bit as "high speed" and
+ * clocks the card at 50 MHz without switching it. So once the card is up at
+ * 25 MHz, move it to 4 bits here, as mmc_startup() would (ACMD6). Measured
+ * on the RG Rotate: 8 MiB in 744 ms instead of 2823 ms, same data
+ * (plorpos-3yv.49.3).
+ */
+static void sd_4bit_bus(struct mmc *mmc)
+{
+	struct mmc_cmd cmd;
+
+	if (!(mmc->scr[0] & SD_DATA_4BIT) || mmc->bus_width == 4)
+		return;
+
+	cmd.cmdidx = MMC_CMD_APP_CMD;
+	cmd.resp_type = MMC_RSP_R1;
+	cmd.cmdarg = mmc->rca << 16;
+	if (mmc_send_cmd(mmc, &cmd, NULL))
+		return;
+
+	cmd.cmdidx = SD_CMD_APP_SET_BUS_WIDTH;
+	cmd.resp_type = MMC_RSP_R1;
+	cmd.cmdarg = 2;
+	if (mmc_send_cmd(mmc, &cmd, NULL))
+		return;
+
+	mmc_set_bus_width(mmc, 4);
+}
+
 struct mmc *board_sd_init(void)
 {
 	struct mmc *mmc;
@@ -2519,6 +2552,7 @@ struct mmc *board_sd_init(void)
 			debugf("sdcard init failed %d\n", ret);
 			return NULL;
 		}
+		sd_4bit_bus(mmc);
 	} else {
 		debugf("no sdcard found\n");
 		return NULL;
