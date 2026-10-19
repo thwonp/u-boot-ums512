@@ -186,15 +186,23 @@ static int swivel_closed(void)
 	return sprd_gpio_get(NULL, HALL_GPIO) == 0;
 }
 
-/* The plorpOS logo, upright for the way the device is held. */
+/*
+ * The plorpOS logo, upright for the way the device is held. It stays on
+ * screen through the kernel handoff: the DPU keeps scanning this buffer until
+ * the kernel resets the panel (backlight off), then fbcon draws the same logo,
+ * turned by fbcon=rotate:${plorpos_fbrot} (plorpos-3yv.49.2).
+ */
+static int logo_closed;
+
 static void lcd_logo(void)
 {
 	if (!panel_up) {
 		logo_display(LOGO_NORMAL_POWER, BACKLIGHT_OFF, LCD_DISPLAY_ENABLE);
 		panel_up = 1;
 	}
+	logo_closed = swivel_closed();
 	plorpos_logo_draw((unsigned int *)(uintptr_t)gd->fb_base,
-			  panel_info.vl_col, panel_info.vl_row, swivel_closed());
+			  panel_info.vl_col, panel_info.vl_row, logo_closed);
 	lcd_sync();
 	logo_display(LOGO_NORMAL_POWER, BACKLIGHT_ON, 0);
 }
@@ -301,37 +309,6 @@ static inline void charger_reg_dump(void) { }
 static void charge_blank(void)
 {
 	logo_display(LOGO_NORMAL_POWER, BACKLIGHT_OFF, 0);
-}
-
-/*
- * Hand the panel to the kernel dark: wipe the framebuffer to black, push that
- * to the panel, then drop the backlight. lcd_clear() fills with bg_color,
- * which is black here (CONFIG_SYS_WHITE_ON_BLACK). No-op if the panel was
- * never brought up.
- *
- * This is what arch_preboot_os() calls, so the boot logo stays lit
- * for the whole kernel/dtb/initrd load and only goes dark at the handoff --
- * rather than the kernel's DRM bring-up relighting a panel that still holds
- * our pixels, which is what produced the line artifacts before fbcon cleared.
- */
-static void lcd_handoff_blank(void)
-{
-	if (!panel_up)
-		return;
-
-	lcd_clear();
-	lcd_sync();
-}
-
-/*
- * Weak hook in common/bootm_os.c, called from boot_selected_os() immediately
- * before the kernel entry -- the last code that runs with the framebuffer
- * still ours. Only the extlinux/sysboot path goes through bootm; the stock
- * chainload jumps on its own and never gets here.
- */
-void arch_preboot_os(void)
-{
-	lcd_handoff_blank();
 }
 
 /*
@@ -639,6 +616,8 @@ static int do_extlinux_scan(cmd_tbl_t *cmdtp, int flag, int argc,
 				snprintf(t_env, sizeof(t_env), "%lu,%lu,%lu",
 					 t_scan, t_logo, boot_ms());
 				setenv("plorpos_ubt", t_env);
+				/* fbcon's rotate:1 is the closed mapping above. */
+				setenv("plorpos_fbrot", logo_closed ? "1" : "0");
 
 				if (!try_sysboot(1, parts[pi], paths[fi]))
 					return 0;

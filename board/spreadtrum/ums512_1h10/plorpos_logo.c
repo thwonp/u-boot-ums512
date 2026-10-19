@@ -1,6 +1,6 @@
 /*
- * plorpOS boot logo (plorpos-3yv.49.1): the wordmark on the launcher's
- * background, "plorp" in the plorpOS purple and "OS" in the launcher's text
+ * plorpOS boot logo (plorpos-3yv.49.1): the wordmark on black (the kernel's
+ * fbcon draws the same logo on black after the handoff, plorpos-3yv.49.2), "plorp" in the plorpOS purple and "OS" in the launcher's text
  * color, centered. Drawn upright for the way the device is held: open as the
  * panel's own orientation, closed turned the way the launcher turns (sway's
  * transform 90 - the panel's right edge becomes the top).
@@ -11,7 +11,7 @@
 #include "plorpos_logo_draw.h"
 #include "plorpos_logo.h"
 
-#define BG	0x07080cu	/* launcher background (UI_BG_*) */
+#define BG	0x000000u	/* black, as around the kernel's copy */
 #define FG_L	0x8a5cd6u	/* plorpOS purple */
 #define FG_R	0xededf2u	/* launcher text (UI_TEXT) */
 
