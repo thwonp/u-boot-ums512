@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-# plorpOS boot logo -> plorpos_logo.h (plorpos-3yv.49.1).
+# Boot logo -> plorpos_logo.h (plorpos-3yv.49.1).
 #
-# Input: the wordmark's coverage map, 8-bit gray, trimmed, made from TortOS
-# res/fonts/head.ttf (Fredoka) at 132 pt:
-#   magick -background none -font head.ttf -pointsize 132 -fill white label:plorp p.png
-#   magick -background none -font head.ttf -pointsize 132 -fill white label:OS o.png
-#   magick p.png o.png +append -trim +repage -alpha extract -depth 8 gray:word.raw
-# Columns left of SPLIT are "plorp" (purple), the rest "OS" (white).
+# Input: the word's coverage map, 8-bit gray, trimmed, made from TortOS
+# res/fonts/head.ttf (Fredoka) at 132 pt. Today "Booting", all purple
+# (plorpos-3yv.78.6):
+#   magick -background none -font head.ttf -pointsize 132 -fill white label:Booting \
+#     -trim +repage -alpha extract -depth 8 gray:word.raw
+#   mklogo.py word.raw 446 122 446 > plorpos_logo.h
+# Columns left of SPLIT are purple, the rest white (the old plorpOS wordmark
+# was label:plorp + label:OS appended, SPLIT at the end of "plorp").
 #
 # RLE: a nonzero byte is one pixel's coverage; 0x00 n is n (1..255) empty ones.
 #   mklogo.py word.raw WIDTH HEIGHT SPLIT > plorpos_logo.h

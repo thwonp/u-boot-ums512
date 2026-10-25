@@ -1,7 +1,8 @@
 /*
- * plorpOS boot logo (plorpos-3yv.49.1): the wordmark on black (the kernel's
- * fbcon draws the same logo on black after the handoff, plorpos-3yv.49.2), "plorp" in the plorpOS purple and "OS" in the launcher's text
- * color, centered. Drawn upright for the way the device is held: open as the
+ * The boot logo (plorpos-3yv.49.1): "Booting" in the plorpOS purple on black,
+ * centered (plorpos-3yv.78.6; was the plorpOS wordmark, which the kernel's
+ * fbcon now draws after the handoff). Columns left of the header's SPLIT take
+ * FG_L, the rest FG_R; "Booting" is SPLIT = W, all purple. Drawn upright for the way the device is held: open as the
  * panel's own orientation, closed turned the way the launcher turns (sway's
  * transform 90 - the panel's right edge becomes the top).
  *
